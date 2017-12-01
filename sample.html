@@ -1,0 +1,527 @@
+<html>
+    <head>
+        <meta charset='utf-8'>
+        <style>
+            #chart{
+                width: 1000px;
+                margin: auto;
+                border: 3px solid #483C3C;
+            }
+
+            body{
+                color: #483C3C;
+                padding-top: 100px;
+                padding-bottom: 100px;
+                width: 80%;
+                margin: auto;
+            }
+
+            h1{
+                text-align: center;
+                color: #4F9EF9;
+            }
+
+            h2{
+                color: dodgerblue;
+            }
+
+            hr{
+                margin-top: 50px;
+                margin-bottom: 50px;
+            }
+
+            .alert{
+                border: 1px solid lightgrey;
+                padding: 20px;
+            }
+
+            .alert-info{
+                background: #D9EDF7;
+                color: #31708F;
+            }
+
+            .alert-warning{
+                background: #FCF8E3;
+                color: #966D3B;
+            }
+
+            textarea {
+                border: 3px solid lightgrey;
+                padding: 10px;
+            }
+
+            input {
+                border: 3px solid lightgrey;
+                padding: 3px;
+                margin: 5px;
+            }
+
+            button {
+                border: 3px solid lightgrey;
+                background: white;
+            }
+
+            button:hover {
+                background: #4F9EF9;
+                color: white;
+            }
+
+            button.selected {
+                background: #4F9EF9;
+                color: white;
+            }
+        </style>
+
+        <script type="text/javascript">
+            function distance2D(A, B){
+                /*
+                * Calculating the distance between two points
+                */
+                return distance = Math.sqrt((A[0] - B[0]) * (A[0] - B[0]) + (A[1] - B[1]) * (A[1] - B[1]));
+            }
+
+            function init_canvas(){
+                /*
+                 * Init the canvas with two axis and launch event
+                 */
+                var canvas = document.getElementById('canvas');
+                var chart = document.getElementById('chart');
+                if (canvas.getContext){
+                    self.ctx = canvas.getContext('2d');
+                    self.ctx.clearRect(0, 0, 1000, 400);
+
+                    // Axis legends
+                    self.ctx.font = "12px serif";
+                    self.ctx.fillText("Flow (%)", 20, 20);
+                    self.ctx.fillText("Time (Seconds)", 900, 380);
+                    self.ctx.fillText("0", 10, 390);
+
+                    initialize_event(chart);
+                }
+            }
+
+            function draw(){
+                /*
+                 * Refresh the linechart and each points
+                 */
+                init_canvas();
+                self.ctx.beginPath();
+                self.ctx.moveTo(0, 400);
+                self.points.forEach(function(point){
+                    self.ctx.lineTo(point[0], point[1]);
+                });
+                self.ctx.lineTo(1000, 400);
+                self.ctx.stroke();
+
+                self.points.forEach(function(point, index){
+                    ctx.beginPath();
+                    ctx.arc(point[0], point[1], 3, 0, Math.PI*2, true);
+                    ctx.fill();
+                });
+            }
+
+            function add_point(x, y){
+                /*
+                 * Add a point
+                 * You need to refresh the canvas after this operation to see the changement
+                 */
+                var previous = -1;
+                self.points.forEach(function(point, index){
+                    if(point[0] < x){
+                        previous = index;
+                    }
+                });
+
+                // Insert new point at index
+                self.points.splice(previous+1, 0, [x,y]);
+            }
+
+            function initialize_event(chart){
+                /*
+                 * Init event for create point and move point with mouse
+                 */
+                // Visual point in canvas
+                chart.onmousedown = function event(e){
+                    self.posDown = [e.pageX - chart.offsetLeft, e.pageY - chart.offsetTop];
+                };
+                chart.onmouseup = function event(e){
+                    self.posUp = [e.pageX - chart.offsetLeft, e.pageY - chart.offsetTop];
+                    take_action();
+                };
+            }
+
+            function take_action() {
+                /*
+                 * Take a decision after event
+                 */
+                var distance = distance2D(self.posDown, self.posUp);
+
+                // It's a click
+                if(distance < 10){
+                    if(this.mode == 'write') {
+                        add_point(self.posUp[0], self.posUp[1]);
+                        draw();
+                    }
+                    if(this.mode == 'remove') {
+                        var distance_minimum = null;
+                        var id = null;
+
+                        // Detect the point who has been moved
+                        self.points.forEach(function(point, index){
+                            var distance = distance2D(point, self.posDown);
+                            if(distance < distance_minimum || distance_minimum == null){
+                                distance_minimum = distance;
+                                id = index;
+                            }
+                        });
+
+                        if(distance_minimum < 10) {
+                            self.points.splice(id, 1);
+                        }
+                        draw();
+                    }
+                }
+
+                // It's a move
+                else{
+                    var distance_minimum = null;
+                    var id = null;
+
+                    // Detect the point who has been moved
+                    self.points.forEach(function(point, index){
+                        var distance = distance2D(point, self.posDown);
+                        if(distance < distance_minimum || distance_minimum == null){
+                            distance_minimum = distance;
+                            id = index;
+                        }
+                    });
+
+                    // Delete the point and create the new one
+                    self.points.splice(id, 1);
+                    add_point(self.posUp[0], self.posUp[1]);
+
+                    draw();
+                }
+            }
+
+            function make_sample() {
+                /*
+                 * Make sample from the list of points and form
+                 */
+
+                // Update value in form
+                change_pas();
+
+                // Make sample
+                var sample = [];
+                var previous = 0;
+                var real_points = self.points.slice();
+                real_points.splice(0, 0, [0,400]);
+                real_points.splice(real_points.length, 0, [self.width, 400]);
+
+                for (x = 0; x < self.width; x+=self.pas) {
+                    previous = 0;
+                    real_points.forEach(function(point, index){
+                        if(point[0] < x){
+                            previous = index;
+                        }
+                    });
+                    var vecteur_abc = real_points[previous + 1][0] - real_points[previous][0];
+                    var vecteur_ord = - (real_points[previous + 1][1] - real_points[previous][1]);
+
+                    var number_of_segment = vecteur_abc/self.pas;
+                    var pas_ord = vecteur_ord/number_of_segment;
+
+                    var distance_x_to_point = x - real_points[previous][0];
+                    var prorata_pas = distance_x_to_point/self.pas;
+
+                    var y = ((400 - real_points[previous][1]) + pas_ord*prorata_pas)/4;
+                    sample.push([(self.time/self.width)*x, y]);
+                }
+                sample.push([self.time, 0]);
+                print_sample(sample, 'sample_data');
+            }
+
+            function print_sample(sample, id_textarea){
+                /*
+                 * Display the sample string in the page to allow copy/paste
+                 */
+                var sample_text = "";
+                sample.forEach(function(point){
+                    sample_text += point[0]+ ";" + point[1] + "\r\n";
+                });
+                document.getElementById(id_textarea).innerHTML = sample_text;
+            }
+
+            function change_pas(){
+                /*
+                 * Change the frequency for sample
+                 */
+                var freq = document.getElementById('sample_freq').value;
+                var time = document.getElementById('time_max').value;
+                self.time = time;
+
+                var px_per_time = self.width/time;
+
+                self.pas = px_per_time/freq;
+            }
+
+            function make_grouped_sample() {
+                // Init the sample
+                var sample = [];
+
+                // Get all generated sample add to the group
+                var form = document.getElementById('generated_sample');
+                var generated_samples = form.getElementsByClassName('textarea_sample');
+
+                // For each sample
+                for (var index_sample=0;index_sample<generated_samples.length;index_sample++) {
+                    var lines = generated_samples[index_sample].value.split('\n');
+
+                    // For each line in the sample
+                    for(var index_line = 0;index_line < lines.length;index_line++){
+                        if (lines[index_line] != "") {
+                            var attributs = lines[index_line].split(';');
+
+                            // We push the sample to the begin time
+                            var time = document.getElementById('time_' + index_sample).value;
+                            attributs[0] = parseFloat(attributs[0]) + parseFloat(time);
+                            var time_not_exist = true;
+
+                            // We check if this time of sampling already exist
+                            for (var index = 0; index < sample.length; index++) {
+                                if (sample[index][0] == attributs[0]) {
+                                    time_not_exist = false;
+                                    var sum_value = parseFloat(sample[index][1]) + parseFloat(attributs[1]);
+
+                                    // We can't have more than 100 percent
+                                    if (sum_value > 100) {
+                                        sum_value = 100;
+                                    }
+                                    sample[index][1] = sum_value;
+                                }
+                            }
+                            // If time doesn't exist we create a new line of sample
+                            if (time_not_exist) {
+                                sample.push([attributs[0], attributs[1]]);
+                            }
+                        }
+                    }
+                }
+
+                // We check if all line of the sample exist also we create line with value 0
+                var first_time = parseFloat(sample[0][0]);
+                var second_time = parseFloat(sample[1][0]);
+                var period = second_time - first_time;
+
+                // We sort sample to find the max of the group sample
+                sample.sort(function(a,b) {
+                    return a[0] - b[0];
+                });
+                var max_time = sample[sample.length-1][0];
+
+                var time = 0;
+                while(time < max_time){
+                    var time_not_exist = true;
+                    for (var index = 0; index < sample.length; index++) {
+                        if(sample[index][0] == time){
+                            time_not_exist = false;
+                        }
+                    }
+                    if(time_not_exist){
+                        sample.push([time, '0'])
+                    }
+                    time += period;
+                }
+
+                // We sort sample to have a correct sample
+                sample.sort(function(a,b) {
+                    return a[0] - b[0];
+                });
+                print_sample(sample, 'sample_group_data')
+            }
+
+            function add_generated_sample(){
+                var form = document.getElementById('generated_sample');
+
+                var index = form.getElementsByClassName('generated_sample_added').length;
+
+                var new_div = document.createElement("div");
+                new_div.setAttribute('class', 'generated_sample_added');
+                var title = document.createElement("h3");
+                title.innerHTML = "Generated sample " + index;
+                var new_div_margin = document.createElement("div");
+                new_div_margin.style = "margin-left:50px;";
+                var p_textarea = document.createElement("p");
+                var label_textarea = document.createElement("label");
+                label_textarea.innerHTML = "Your generated sample :";
+                label_textarea.setAttribute('for', "sample_"+index);
+                var textarea = document.createElement("textarea");
+                textarea.id = "sample_" + index;
+                textarea.setAttribute('class', 'textarea_sample');
+                textarea.style = "width: 100%; height: 200px;";
+                var p_input = document.createElement("p");
+                var label_input = document.createElement("label");
+                label_input.innerHTML = "Begin time of this sample :";
+                label_input.setAttribute('for', "time_"+index);
+                var input = document.createElement("input");
+                input.id = "time_" + index;
+                input.type = "number";
+                input.setAttribute('min', 0);
+                input.defaultValue = 0;
+                var hr = document.createElement("hr");
+
+                new_div.appendChild(title);
+                new_div.appendChild(new_div_margin);
+                new_div_margin.appendChild(p_textarea);
+                new_div_margin.appendChild(p_input);
+                p_textarea.appendChild(label_textarea);
+                p_textarea.appendChild(textarea);
+                p_input.appendChild(label_input);
+                p_input.appendChild(input);
+                form.appendChild(new_div);
+            }
+
+            function display_tool(name) {
+                var tools = document.getElementsByClassName('tools');
+                for(var i = 0; i<tools.length; i++){
+                    tools[i].style.display = 'none';
+                }
+                document.getElementById(name).style.display= 'block';
+            }
+
+            function change_mode(name) {
+                this.mode = name;
+                var buttons = document.getElementsByClassName('buttons_mode');
+                for(var i=0; i<buttons.length; i++){
+                    buttons[i].className = 'buttons_mode';
+                }
+                document.getElementById('mode_'+name).className = 'selected buttons_mode';
+            }
+            var time = 1000;
+            var ctx;
+            var points = [];
+            var posDown = [];
+            var posUp = [];
+            var pas;
+            var width = 1000;
+            var mode = 'write';
+        </script>
+    </head>
+
+    <body onload="init_canvas();">
+        <div style="text-align: center;">
+            <h2>What do you want to do today ?</h2>
+            <button onclick="display_tool('make_sample')">Make a sample</button>
+            <button onclick="display_tool('group_sample')">Group multiple sample</button>
+
+            <br>
+            <p>
+                This page offers a range of useful tools to make sampling curve.
+            </p>
+
+            <p class="alert alert-info">
+                The code run without any dependency, so you can easily copy
+                the source of the page and run it locally if you need.
+                <br>
+                (Right click -> source code of the page)
+            </p>
+
+            <p class="alert alert-warning">
+                If you see some error and/or have some time to upgrade this tool, please feel free to participate on the github repository
+            </p>
+        </div>
+
+        <hr>
+
+        <div id="make_sample" class="tools" style="display:none">
+            <h1>Make sampling</h1>
+
+            <p style="text-align: center;">
+                This tool allows you to easily make sample.
+                Simply draw your curve, define your constant and get your sampling.
+            </p>
+            <hr>
+
+            <h2>1 - Draw your pattern :</h2>
+            <p  class="alert alert-info">
+                <strong>
+                    Usage:
+                </strong>
+                Select your mode to add or remove a point.<br>
+                You can drag and drop an existant point to an other position
+            </p>
+
+            <p>
+                <h3>Mode</h3>
+                <button id="mode_write" onclick="change_mode('write');" class="selected buttons_mode">Add point</button>
+                <button id="mode_remove" onclick="change_mode('remove');" class="buttons_mode">Delete point</button>
+            </p>
+
+            <div id="chart">
+                <canvas id="canvas" width="1000" height="400">
+                </canvas>
+            </div>
+
+            <hr>
+
+            <h2>2 - Set constant for sampling :</h2>
+
+            <form action="" method="post">
+                <p>
+                    <label for="sample_freq">Sample frequency :</label>
+                    <input id="sample_freq" type="number" value="1" onchange="change_pas()"/> Hertz
+                </p>
+                <br>
+                <p>
+                    <label for="time_max">Time of the pattern :</label>
+                    <input id="time_max" type="number" value="1000" onchange="change_pas()"/> Second(s)
+                </p>
+            </form>
+
+            <hr>
+
+            <h2>3 - Generate your sample :</h2>
+            <button onclick="make_sample()">Generate my sample</button>
+
+            <hr>
+
+            <h2>4 - Get your generated sample : </h2>
+
+            <textarea readonly id="sample_data" style="width: 100%; height: 200px;">You don't have any generated sample for the moment</textarea>
+        </div>
+        <div id="group_sample" class="tools" style="display:none">
+            <h1>Group of samples</h1>
+
+            <p style="text-align: center;">
+                This tool allows you to easily group multiple sample.
+                Simply add your sample file, define your begin time for each file and get your sampling.
+            </p>
+            <hr>
+
+            <h2>
+                1 - Insert your generated sample :
+                <button onclick="add_generated_sample()">Add an other generated sample</button>
+            </h2>
+
+            <p class="alert alert-warning">
+                <strong>
+                    Warning:
+                </strong>
+                All your sample need to have the same frequency. You can't group a sample at 200Hz and a sample at 300Hz
+            </p>
+
+            <form id="generated_sample">
+            </form>
+
+            <h2>2 - Group your samples :</h2>
+            <button onclick="make_grouped_sample()">Group all my sample</button>
+
+            <hr>
+
+            <h2>3 - Get your grouped samples : </h2>
+
+            <textarea readonly id="sample_group_data" style="width: 100%; height: 200px;">You don't have any grouped sample for the moment</textarea>
+        </div>
+    </body>
+</html>
